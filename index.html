@@ -346,7 +346,8 @@
     function getCode(feature) {
       const numId = feature.id;
       if (numId != null) {
-        const a3 = NUM_TO_A3[String(numId)];
+        // Strip leading zeros (TopoJSON stores e.g. "076" for Brazil, "004" for Afghanistan)
+        const a3 = NUM_TO_A3[String(parseInt(numId, 10))];
         if (a3) return a3;
       }
       return feature.properties['ISO3166-1-Alpha-3'] || null;
@@ -493,7 +494,9 @@
       .then(r => r.json())
       .then(topology => {
         const geojson = topojson.feature(topology, topology.objects.countries);
-        geojsonLayer = L.geoJson(geojson, { style: styleFeature, onEachFeature }).addTo(map);
+        // Use SVG renderer with padding to prevent clipping seams at tile boundaries
+        const renderer = L.svg({ padding: 0.5 });
+        geojsonLayer = L.geoJson(geojson, { style: styleFeature, onEachFeature, renderer }).addTo(map);
         document.getElementById('loading').classList.add('hidden');
 
         const input = document.getElementById('searchInput');
