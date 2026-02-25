@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>World GDP Heat Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    #map { width: 100vw; height: 100vh; background: #b8d4e8; }
+
+    .info-panel {
+      padding: 10px 14px;
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(8px);
+      border-radius: 8px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+      font-size: 14px;
+      line-height: 1.5;
+      max-width: 280px;
+    }
+    .info-panel .country-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1a1a1a;
+      margin-bottom: 4px;
+    }
+    .info-panel .gdp-value {
+      font-size: 22px;
+      font-weight: 700;
+      color: #1b5e20;
+    }
+    .info-panel .stat-row {
+      font-size: 13px;
+      color: #555;
+      margin-top: 2px;
+    }
+    .info-panel .stat-label { color: #888; }
+    .info-panel .hint { color: #999; font-size: 13px; }
+
+    .legend {
+      padding: 10px 14px;
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(8px);
+      border-radius: 8px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+      line-height: 1.6;
+      font-size: 12px;
+    }
+    .legend h4 { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: #333; }
+    .legend i {
+      width: 20px; height: 14px; display: inline-block;
+      margin-right: 6px; border-radius: 2px; vertical-align: middle;
+      border: 1px solid rgba(0,0,0,0.08);
+    }
+
+    .title-bar {
+      padding: 10px 16px;
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(8px);
+      border-radius: 8px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+      font-size: 18px; font-weight: 700; color: #1a1a1a; text-align: center;
+    }
+    .title-bar small { display: block; font-size: 11px; font-weight: 400; color: #888; margin-top: 2px; }
+
+    .search-container {
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(8px);
+      border-radius: 8px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+      padding: 6px;
+    }
+    .search-container input {
+      width: 220px; padding: 8px 12px; border: 1px solid #ddd;
+      border-radius: 6px; font-size: 14px; outline: none;
+    }
+    .search-container input:focus { border-color: #2d6a4f; }
+    .search-results { max-height: 200px; overflow-y: auto; margin-top: 4px; }
+    .search-results div { padding: 6px 12px; cursor: pointer; font-size: 13px; border-radius: 4px; }
+    .search-results div:hover { background: #e8f5e9; }
+
+    .loading-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(255,255,255,0.85); display: flex;
+      align-items: center; justify-content: center; z-index: 10000;
+      font-size: 18px; color: #555;
+    }
+    .loading-overlay.hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div id="loading" class="loading-overlay">Loading map data...</div>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/topojson-client@3/dist/topojson-client.min.js"></script>
+  <script>
+    // GDP data keyed by ISO 3166-1 Alpha-3 codes
+    // Source: World Bank 2023 estimates, nominal GDP in current USD
+    const GDP = {
+      AFG: { gdp: 14.27e9,    name: "Afghanistan",              pop: 41.13e6 },
+      ALB: { gdp: 22.98e9,    name: "Albania",                  pop: 2.83e6 },
+      DZA: { gdp: 239.9e9,    name: "Algeria",                  pop: 45.61e6 },
+      AND: { gdp: 3.35e9,     name: "Andorra",                  pop: 0.08e6 },
+      AGO: { gdp: 92.12e9,    name: "Angola",                   pop: 35.59e6 },
+      ATG: { gdp: 1.87e9,     name: "Antigua and Barbuda",      pop: 0.1e6 },
+      ARG: { gdp: 621.83e9,   name: "Argentina",                pop: 46.65e6 },
+      ARM: { gdp: 24.21e9,    name: "Armenia",                  pop: 2.78e6 },
+      AUS: { gdp: 1687.71e9,  name: "Australia",                pop: 26.44e6 },
+      AUT: { gdp: 515.87e9,   name: "Austria",                  pop: 9.1e6 },
+      AZE: { gdp: 72.36e9,    name: "Azerbaijan",               pop: 10.41e6 },
+      BHS: { gdp: 14.62e9,    name: "Bahamas",                  pop: 0.41e6 },
+      BHR: { gdp: 44.39e9,    name: "Bahrain",                  pop: 1.49e6 },
+      BGD: { gdp: 437.43e9,   name: "Bangladesh",               pop: 172.95e6 },
+      BRB: { gdp: 6.27e9,     name: "Barbados",                 pop: 0.28e6 },
+      BLR: { gdp: 72.87e9,    name: "Belarus",                  pop: 9.2e6 },
+      BEL: { gdp: 624.25e9,   name: "Belgium",                  pop: 11.69e6 },
+      BLZ: { gdp: 3.28e9,     name: "Belize",                   pop: 0.41e6 },
+      BEN: { gdp: 19.24e9,    name: "Benin",                    pop: 13.35e6 },
+      BTN: { gdp: 2.77e9,     name: "Bhutan",                   pop: 0.78e6 },
+      BOL: { gdp: 44.01e9,    name: "Bolivia",                  pop: 12.22e6 },
+      BIH: { gdp: 24.52e9,    name: "Bosnia and Herz.",         pop: 3.21e6 },
+      BWA: { gdp: 19.4e9,     name: "Botswana",                 pop: 2.63e6 },
+      BRA: { gdp: 2126.81e9,  name: "Brazil",                   pop: 216.42e6 },
+      BRN: { gdp: 15.13e9,    name: "Brunei",                   pop: 0.45e6 },
+      BGR: { gdp: 100.63e9,   name: "Bulgaria",                 pop: 6.52e6 },
+      BFA: { gdp: 20.33e9,    name: "Burkina Faso",             pop: 22.67e6 },
+      BDI: { gdp: 3.07e9,     name: "Burundi",                  pop: 13.24e6 },
+      CPV: { gdp: 2.35e9,     name: "Cabo Verde",               pop: 0.6e6 },
+      KHM: { gdp: 31.77e9,    name: "Cambodia",                 pop: 16.94e6 },
+      CMR: { gdp: 44.34e9,    name: "Cameroon",                 pop: 28.65e6 },
+      CAN: { gdp: 2117.81e9,  name: "Canada",                   pop: 40.1e6 },
+      CAF: { gdp: 2.58e9,     name: "Central African Rep.",     pop: 5.74e6 },
+      TCD: { gdp: 12.7e9,     name: "Chad",                     pop: 18.28e6 },
+      CHL: { gdp: 335.53e9,   name: "Chile",                    pop: 19.63e6 },
+      CHN: { gdp: 17963e9,    name: "China",                    pop: 1412.18e6 },
+      COL: { gdp: 334.69e9,   name: "Colombia",                 pop: 52.08e6 },
+      COM: { gdp: 1.33e9,     name: "Comoros",                  pop: 0.84e6 },
+      COG: { gdp: 15.32e9,    name: "Congo",                    pop: 6.11e6 },
+      COD: { gdp: 66.01e9,    name: "Dem. Rep. Congo",          pop: 102.26e6 },
+      CRI: { gdp: 68.38e9,    name: "Costa Rica",               pop: 5.21e6 },
+      CIV: { gdp: 70.02e9,    name: "Cote d'Ivoire",            pop: 28.87e6 },
+      HRV: { gdp: 78.87e9,    name: "Croatia",                  pop: 3.85e6 },
+      CUB: { gdp: 107.35e9,   name: "Cuba",                     pop: 11.09e6 },
+      CYP: { gdp: 31.37e9,    name: "Cyprus",                   pop: 1.26e6 },
+      CZE: { gdp: 330.48e9,   name: "Czech Republic",           pop: 10.83e6 },
+      DNK: { gdp: 404.2e9,    name: "Denmark",                  pop: 5.94e6 },
+      DJI: { gdp: 3.98e9,     name: "Djibouti",                 pop: 1.12e6 },
+      DMA: { gdp: 0.64e9,     name: "Dominica",                 pop: 0.07e6 },
+      DOM: { gdp: 113.64e9,   name: "Dominican Republic",       pop: 11.23e6 },
+      ECU: { gdp: 118.85e9,   name: "Ecuador",                  pop: 18.19e6 },
+      EGY: { gdp: 395.93e9,   name: "Egypt",                    pop: 112.72e6 },
+      SLV: { gdp: 33.84e9,    name: "El Salvador",              pop: 6.36e6 },
+      GNQ: { gdp: 12.27e9,    name: "Equatorial Guinea",        pop: 1.67e6 },
+      ERI: { gdp: 2.61e9,     name: "Eritrea",                  pop: 3.68e6 },
+      EST: { gdp: 40.75e9,    name: "Estonia",                  pop: 1.37e6 },
+      SWZ: { gdp: 4.85e9,     name: "Eswatini",                 pop: 1.2e6 },
+      ETH: { gdp: 155.81e9,   name: "Ethiopia",                 pop: 126.53e6 },
+      FJI: { gdp: 5.54e9,     name: "Fiji",                     pop: 0.93e6 },
+      FIN: { gdp: 300.32e9,   name: "Finland",                  pop: 5.56e6 },
+      FRA: { gdp: 3049.02e9,  name: "France",                   pop: 68.17e6 },
+      GAB: { gdp: 21.07e9,    name: "Gabon",                    pop: 2.39e6 },
+      GMB: { gdp: 2.27e9,     name: "Gambia",                   pop: 2.7e6 },
+      GEO: { gdp: 30.54e9,    name: "Georgia",                  pop: 3.74e6 },
+      DEU: { gdp: 4430.05e9,  name: "Germany",                  pop: 84.48e6 },
+      GHA: { gdp: 72.84e9,    name: "Ghana",                    pop: 33.48e6 },
+      GRC: { gdp: 238.3e9,    name: "Greece",                   pop: 10.34e6 },
+      GRD: { gdp: 1.32e9,     name: "Grenada",                  pop: 0.12e6 },
+      GTM: { gdp: 95.0e9,     name: "Guatemala",                pop: 17.6e6 },
+      GIN: { gdp: 20.99e9,    name: "Guinea",                   pop: 14.19e6 },
+      GNB: { gdp: 1.85e9,     name: "Guinea-Bissau",            pop: 2.1e6 },
+      GUY: { gdp: 16.32e9,    name: "Guyana",                   pop: 0.81e6 },
+      HTI: { gdp: 19.76e9,    name: "Haiti",                    pop: 11.72e6 },
+      HND: { gdp: 31.72e9,    name: "Honduras",                 pop: 10.43e6 },
+      HUN: { gdp: 199.01e9,   name: "Hungary",                  pop: 9.6e6 },
+      ISL: { gdp: 28.72e9,    name: "Iceland",                  pop: 0.38e6 },
+      IND: { gdp: 3732.22e9,  name: "India",                    pop: 1428.63e6 },
+      IDN: { gdp: 1371.16e9,  name: "Indonesia",                pop: 277.53e6 },
+      IRN: { gdp: 401.51e9,   name: "Iran",                     pop: 88.55e6 },
+      IRQ: { gdp: 264.18e9,   name: "Iraq",                     pop: 44.5e6 },
+      IRL: { gdp: 545.63e9,   name: "Ireland",                  pop: 5.26e6 },
+      ISR: { gdp: 525.0e9,    name: "Israel",                   pop: 9.84e6 },
+      ITA: { gdp: 2186.08e9,  name: "Italy",                    pop: 58.76e6 },
+      JAM: { gdp: 18.77e9,    name: "Jamaica",                  pop: 2.83e6 },
+      JPN: { gdp: 4230.86e9,  name: "Japan",                    pop: 124.52e6 },
+      JOR: { gdp: 49.56e9,    name: "Jordan",                   pop: 11.34e6 },
+      KAZ: { gdp: 259.29e9,   name: "Kazakhstan",               pop: 19.77e6 },
+      KEN: { gdp: 104.0e9,    name: "Kenya",                    pop: 55.1e6 },
+      KIR: { gdp: 0.22e9,     name: "Kiribati",                 pop: 0.13e6 },
+      PRK: { gdp: 18.0e9,     name: "North Korea",              pop: 26.07e6 },
+      KOR: { gdp: 1709.23e9,  name: "South Korea",              pop: 51.74e6 },
+      XKX: { gdp: 9.41e9,     name: "Kosovo",                   pop: 1.77e6 },
+      KWT: { gdp: 161.77e9,   name: "Kuwait",                   pop: 4.31e6 },
+      KGZ: { gdp: 12.28e9,    name: "Kyrgyzstan",               pop: 7.0e6 },
+      LAO: { gdp: 15.84e9,    name: "Laos",                     pop: 7.53e6 },
+      LVA: { gdp: 43.63e9,    name: "Latvia",                   pop: 1.83e6 },
+      LBN: { gdp: 18.08e9,    name: "Lebanon",                  pop: 5.49e6 },
+      LSO: { gdp: 2.51e9,     name: "Lesotho",                  pop: 2.31e6 },
+      LBR: { gdp: 4.0e9,      name: "Liberia",                  pop: 5.3e6 },
+      LBY: { gdp: 45.75e9,    name: "Libya",                    pop: 6.89e6 },
+      LIE: { gdp: 7.37e9,     name: "Liechtenstein",            pop: 0.04e6 },
+      LTU: { gdp: 75.48e9,    name: "Lithuania",                pop: 2.87e6 },
+      LUX: { gdp: 82.27e9,    name: "Luxembourg",               pop: 0.66e6 },
+      MDG: { gdp: 15.77e9,    name: "Madagascar",               pop: 30.33e6 },
+      MWI: { gdp: 13.16e9,    name: "Malawi",                   pop: 20.41e6 },
+      MYS: { gdp: 399.65e9,   name: "Malaysia",                 pop: 34.31e6 },
+      MDV: { gdp: 6.6e9,      name: "Maldives",                 pop: 0.52e6 },
+      MLI: { gdp: 20.49e9,    name: "Mali",                     pop: 22.39e6 },
+      MLT: { gdp: 20.96e9,    name: "Malta",                    pop: 0.54e6 },
+      MHL: { gdp: 0.28e9,     name: "Marshall Islands",         pop: 0.04e6 },
+      MRT: { gdp: 10.01e9,    name: "Mauritania",               pop: 4.77e6 },
+      MUS: { gdp: 14.81e9,    name: "Mauritius",                pop: 1.3e6 },
+      MEX: { gdp: 1322.74e9,  name: "Mexico",                   pop: 128.9e6 },
+      FSM: { gdp: 0.44e9,     name: "Micronesia",               pop: 0.11e6 },
+      MDA: { gdp: 16.54e9,    name: "Moldova",                  pop: 2.6e6 },
+      MCO: { gdp: 8.6e9,      name: "Monaco",                   pop: 0.04e6 },
+      MNG: { gdp: 19.87e9,    name: "Mongolia",                 pop: 3.45e6 },
+      MNE: { gdp: 7.07e9,     name: "Montenegro",               pop: 0.62e6 },
+      MAR: { gdp: 141.11e9,   name: "Morocco",                  pop: 37.46e6 },
+      MOZ: { gdp: 17.85e9,    name: "Mozambique",               pop: 33.9e6 },
+      MMR: { gdp: 59.37e9,    name: "Myanmar",                  pop: 54.18e6 },
+      NAM: { gdp: 12.35e9,    name: "Namibia",                  pop: 2.6e6 },
+      NRU: { gdp: 0.15e9,     name: "Nauru",                    pop: 0.01e6 },
+      NPL: { gdp: 40.83e9,    name: "Nepal",                    pop: 30.9e6 },
+      NLD: { gdp: 1092.75e9,  name: "Netherlands",              pop: 17.62e6 },
+      NZL: { gdp: 253.47e9,   name: "New Zealand",              pop: 5.22e6 },
+      NIC: { gdp: 17.83e9,    name: "Nicaragua",                pop: 7.05e6 },
+      NER: { gdp: 16.82e9,    name: "Niger",                    pop: 26.21e6 },
+      NGA: { gdp: 362.81e9,   name: "Nigeria",                  pop: 223.8e6 },
+      MKD: { gdp: 14.2e9,     name: "North Macedonia",          pop: 1.83e6 },
+      NOR: { gdp: 485.51e9,   name: "Norway",                   pop: 5.47e6 },
+      OMN: { gdp: 104.9e9,    name: "Oman",                     pop: 4.6e6 },
+      PAK: { gdp: 338.24e9,   name: "Pakistan",                 pop: 240.49e6 },
+      PLW: { gdp: 0.26e9,     name: "Palau",                    pop: 0.02e6 },
+      PSE: { gdp: 18.04e9,    name: "Palestine",                pop: 5.37e6 },
+      PAN: { gdp: 76.52e9,    name: "Panama",                   pop: 4.4e6 },
+      PNG: { gdp: 30.62e9,    name: "Papua New Guinea",         pop: 10.33e6 },
+      PRY: { gdp: 42.96e9,    name: "Paraguay",                 pop: 6.86e6 },
+      PER: { gdp: 268.23e9,   name: "Peru",                     pop: 34.35e6 },
+      PHL: { gdp: 435.67e9,   name: "Philippines",              pop: 117.34e6 },
+      POL: { gdp: 811.23e9,   name: "Poland",                   pop: 36.82e6 },
+      PRT: { gdp: 287.08e9,   name: "Portugal",                 pop: 10.33e6 },
+      QAT: { gdp: 219.57e9,   name: "Qatar",                    pop: 2.72e6 },
+      ROU: { gdp: 348.9e9,    name: "Romania",                  pop: 19.05e6 },
+      RUS: { gdp: 1862.47e9,  name: "Russia",                   pop: 144.24e6 },
+      RWA: { gdp: 13.31e9,    name: "Rwanda",                   pop: 14.09e6 },
+      KNA: { gdp: 1.14e9,     name: "Saint Kitts and Nevis",    pop: 0.05e6 },
+      LCA: { gdp: 2.39e9,     name: "Saint Lucia",              pop: 0.18e6 },
+      VCT: { gdp: 1.01e9,     name: "St. Vincent & Grenadines", pop: 0.1e6 },
+      WSM: { gdp: 0.93e9,     name: "Samoa",                    pop: 0.22e6 },
+      SMR: { gdp: 1.86e9,     name: "San Marino",               pop: 0.03e6 },
+      STP: { gdp: 0.59e9,     name: "Sao Tome and Principe",    pop: 0.23e6 },
+      SAU: { gdp: 1061.9e9,   name: "Saudi Arabia",             pop: 36.41e6 },
+      SEN: { gdp: 27.63e9,    name: "Senegal",                  pop: 17.76e6 },
+      SRB: { gdp: 75.02e9,    name: "Serbia",                   pop: 6.63e6 },
+      SYC: { gdp: 2.18e9,     name: "Seychelles",               pop: 0.1e6 },
+      SLE: { gdp: 4.17e9,     name: "Sierra Leone",             pop: 8.61e6 },
+      SGP: { gdp: 497.35e9,   name: "Singapore",                pop: 5.92e6 },
+      SVK: { gdp: 127.53e9,   name: "Slovakia",                 pop: 5.43e6 },
+      SVN: { gdp: 68.11e9,    name: "Slovenia",                 pop: 2.12e6 },
+      SLB: { gdp: 1.6e9,      name: "Solomon Islands",          pop: 0.74e6 },
+      SOM: { gdp: 8.13e9,     name: "Somalia",                  pop: 18.14e6 },
+      ZAF: { gdp: 377.12e9,   name: "South Africa",             pop: 60.41e6 },
+      SSD: { gdp: 5.65e9,     name: "South Sudan",              pop: 11.09e6 },
+      ESP: { gdp: 1580.69e9,  name: "Spain",                    pop: 48.06e6 },
+      LKA: { gdp: 84.36e9,    name: "Sri Lanka",                pop: 22.16e6 },
+      SDN: { gdp: 51.47e9,    name: "Sudan",                    pop: 48.11e6 },
+      SUR: { gdp: 3.64e9,     name: "Suriname",                 pop: 0.62e6 },
+      SWE: { gdp: 597.11e9,   name: "Sweden",                   pop: 10.55e6 },
+      CHE: { gdp: 884.94e9,   name: "Switzerland",              pop: 8.85e6 },
+      SYR: { gdp: 11.0e9,     name: "Syria",                    pop: 22.13e6 },
+      TWN: { gdp: 790.73e9,   name: "Taiwan",                   pop: 23.89e6 },
+      TJK: { gdp: 12.01e9,    name: "Tajikistan",               pop: 10.14e6 },
+      TZA: { gdp: 79.16e9,    name: "Tanzania",                 pop: 65.5e6 },
+      THA: { gdp: 514.95e9,   name: "Thailand",                 pop: 71.8e6 },
+      TLS: { gdp: 3.02e9,     name: "Timor-Leste",              pop: 1.36e6 },
+      TGO: { gdp: 9.14e9,     name: "Togo",                     pop: 8.85e6 },
+      TON: { gdp: 0.53e9,     name: "Tonga",                    pop: 0.11e6 },
+      TTO: { gdp: 28.1e9,     name: "Trinidad and Tobago",      pop: 1.53e6 },
+      TUN: { gdp: 48.53e9,    name: "Tunisia",                  pop: 12.46e6 },
+      TUR: { gdp: 1108.02e9,  name: "Turkey",                   pop: 85.28e6 },
+      TKM: { gdp: 59.89e9,    name: "Turkmenistan",             pop: 6.43e6 },
+      TUV: { gdp: 0.06e9,     name: "Tuvalu",                   pop: 0.01e6 },
+      UGA: { gdp: 49.27e9,    name: "Uganda",                   pop: 48.58e6 },
+      UKR: { gdp: 178.76e9,   name: "Ukraine",                  pop: 37.0e6 },
+      ARE: { gdp: 504.17e9,   name: "United Arab Emirates",     pop: 9.44e6 },
+      GBR: { gdp: 3332.06e9,  name: "United Kingdom",           pop: 67.74e6 },
+      USA: { gdp: 27360.94e9, name: "United States",            pop: 339.99e6 },
+      URY: { gdp: 77.24e9,    name: "Uruguay",                  pop: 3.42e6 },
+      UZB: { gdp: 90.38e9,    name: "Uzbekistan",               pop: 36.02e6 },
+      VUT: { gdp: 1.05e9,     name: "Vanuatu",                  pop: 0.33e6 },
+      VAT: { gdp: 0.5e9,      name: "Vatican City",             pop: 0.001e6 },
+      VEN: { gdp: 98.71e9,    name: "Venezuela",                pop: 28.84e6 },
+      VNM: { gdp: 433.36e9,   name: "Vietnam",                  pop: 99.46e6 },
+      YEM: { gdp: 21.61e9,    name: "Yemen",                    pop: 34.45e6 },
+      ZMB: { gdp: 28.33e9,    name: "Zambia",                   pop: 20.57e6 },
+      ZWE: { gdp: 24.3e9,     name: "Zimbabwe",                 pop: 16.67e6 },
+      NCL: { gdp: 9.45e9,     name: "New Caledonia",            pop: 0.29e6 },
+      PRI: { gdp: 113.57e9,   name: "Puerto Rico",              pop: 3.22e6 },
+      FLK: { gdp: 0.26e9,     name: "Falkland Islands",         pop: 0.004e6 },
+      GRL: { gdp: 3.08e9,     name: "Greenland",                pop: 0.06e6 },
+      GUF: { gdp: 4.37e9,     name: "French Guiana",            pop: 0.31e6 },
+      ESH: { gdp: 0.91e9,     name: "Western Sahara",           pop: 0.58e6 },
+    };
+
+    // Map from ISO 3166-1 numeric codes (used in TopoJSON) to Alpha-3
+    const NUM_TO_A3 = {
+      "4":"AFG","8":"ALB","12":"DZA","20":"AND","24":"AGO","28":"ATG","32":"ARG",
+      "51":"ARM","36":"AUS","40":"AUT","31":"AZE","44":"BHS","48":"BHR","50":"BGD",
+      "52":"BRB","112":"BLR","56":"BEL","84":"BLZ","204":"BEN","64":"BTN","68":"BOL",
+      "70":"BIH","72":"BWA","76":"BRA","96":"BRN","100":"BGR","854":"BFA","108":"BDI",
+      "132":"CPV","116":"KHM","120":"CMR","124":"CAN","140":"CAF","148":"TCD",
+      "152":"CHL","156":"CHN","170":"COL","174":"COM","178":"COG","180":"COD",
+      "188":"CRI","384":"CIV","191":"HRV","192":"CUB","196":"CYP","203":"CZE",
+      "208":"DNK","262":"DJI","212":"DMA","214":"DOM","218":"ECU","818":"EGY",
+      "222":"SLV","226":"GNQ","232":"ERI","233":"EST","748":"SWZ","231":"ETH",
+      "242":"FJI","246":"FIN","250":"FRA","266":"GAB","270":"GMB","268":"GEO",
+      "276":"DEU","288":"GHA","300":"GRC","308":"GRD","320":"GTM","324":"GIN",
+      "624":"GNB","328":"GUY","332":"HTI","340":"HND","348":"HUN","352":"ISL",
+      "356":"IND","360":"IDN","364":"IRN","368":"IRQ","372":"IRL","376":"ISR",
+      "380":"ITA","388":"JAM","392":"JPN","400":"JOR","398":"KAZ","404":"KEN",
+      "296":"KIR","408":"PRK","410":"KOR","414":"KWT","417":"KGZ","418":"LAO",
+      "428":"LVA","422":"LBN","426":"LSO","430":"LBR","434":"LBY","438":"LIE",
+      "440":"LTU","442":"LUX","450":"MDG","454":"MWI","458":"MYS","462":"MDV",
+      "466":"MLI","470":"MLT","584":"MHL","478":"MRT","480":"MUS","484":"MEX",
+      "583":"FSM","498":"MDA","492":"MCO","496":"MNG","499":"MNE","504":"MAR",
+      "508":"MOZ","104":"MMR","516":"NAM","520":"NRU","524":"NPL","528":"NLD",
+      "554":"NZL","558":"NIC","562":"NER","566":"NGA","807":"MKD","578":"NOR",
+      "512":"OMN","586":"PAK","585":"PLW","275":"PSE","591":"PAN","598":"PNG",
+      "600":"PRY","604":"PER","608":"PHL","616":"POL","620":"PRT","634":"QAT",
+      "642":"ROU","643":"RUS","646":"RWA","659":"KNA","662":"LCA","670":"VCT",
+      "882":"WSM","674":"SMR","678":"STP","682":"SAU","686":"SEN","688":"SRB",
+      "690":"SYC","694":"SLE","702":"SGP","703":"SVK","705":"SVN","90":"SLB",
+      "706":"SOM","710":"ZAF","728":"SSD","724":"ESP","144":"LKA","729":"SDN",
+      "740":"SUR","752":"SWE","756":"CHE","760":"SYR","158":"TWN","762":"TJK",
+      "834":"TZA","764":"THA","626":"TLS","768":"TGO","776":"TON","780":"TTO",
+      "788":"TUN","792":"TUR","795":"TKM","798":"TUV","800":"UGA","804":"UKR",
+      "784":"ARE","826":"GBR","840":"USA","858":"URY","860":"UZB","548":"VUT",
+      "336":"VAT","862":"VEN","704":"VNM","887":"YEM","894":"ZMB","716":"ZWE",
+      "540":"NCL","630":"PRI","238":"FLK","304":"GRL","254":"GUF","732":"ESH",
+      "-99":"XKX"
+    };
+
+    function getCode(feature) {
+      const numId = feature.id;
+      if (numId != null) {
+        const a3 = NUM_TO_A3[String(numId)];
+        if (a3) return a3;
+      }
+      return feature.properties['ISO3166-1-Alpha-3'] || null;
+    }
+
+    function getColor(gdp) {
+      if (gdp == null) return '#d5d5d5';
+      if (gdp > 10e12) return '#00290d';
+      if (gdp > 5e12)  return '#003d14';
+      if (gdp > 2e12)  return '#00541c';
+      if (gdp > 1e12)  return '#006d2c';
+      if (gdp > 500e9) return '#238b45';
+      if (gdp > 200e9) return '#41ab5d';
+      if (gdp > 100e9) return '#74c476';
+      if (gdp > 50e9)  return '#a1d99b';
+      if (gdp > 10e9)  return '#c7e9c0';
+      if (gdp > 1e9)   return '#e5f5e0';
+      return '#f7fcf5';
+    }
+
+    function fmtGDP(v) {
+      if (v >= 1e12) return '$' + (v / 1e12).toFixed(2) + ' T';
+      if (v >= 1e9)  return '$' + (v / 1e9).toFixed(2) + ' B';
+      if (v >= 1e6)  return '$' + (v / 1e6).toFixed(2) + ' M';
+      return '$' + v.toLocaleString();
+    }
+
+    function fmtPC(gdp, pop) {
+      return pop ? '$' + Math.round(gdp / pop).toLocaleString() : 'N/A';
+    }
+
+    const map = L.map('map', { center: [20, 0], zoom: 3, minZoom: 2, maxZoom: 10, worldCopyJump: true });
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+      subdomains: 'abcd', maxZoom: 19
+    }).addTo(map);
+
+    const labelsPane = map.createPane('labels');
+    labelsPane.style.zIndex = 650;
+    labelsPane.style.pointerEvents = 'none';
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
+      pane: 'labels', subdomains: 'abcd', maxZoom: 19
+    }).addTo(map);
+
+    // Info panel
+    const info = L.control({ position: 'topright' });
+    info.onAdd = function () {
+      this._div = L.DomUtil.create('div', 'info-panel');
+      this.update();
+      return this._div;
+    };
+    info.update = function (data, name) {
+      if (!data && !name) {
+        this._div.innerHTML = '<p class="hint">Hover over a country</p>';
+      } else if (data) {
+        this._div.innerHTML =
+          '<div class="country-name">' + data.name + '</div>' +
+          '<div class="gdp-value">' + fmtGDP(data.gdp) + '</div>' +
+          '<div class="stat-row"><span class="stat-label">Per capita:</span> ' + fmtPC(data.gdp, data.pop) + '</div>' +
+          '<div class="stat-row"><span class="stat-label">Population:</span> ' + (data.pop / 1e6).toFixed(1) + 'M</div>';
+      } else {
+        this._div.innerHTML =
+          '<div class="country-name">' + name + '</div>' +
+          '<div class="stat-row" style="color:#999">GDP data unavailable</div>';
+      }
+    };
+    info.addTo(map);
+
+    // Title
+    const titleCtrl = L.control({ position: 'topleft' });
+    titleCtrl.onAdd = function () {
+      const div = L.DomUtil.create('div', 'title-bar');
+      div.innerHTML = 'World GDP Heat Map<small>Nominal GDP (USD) — 2023 estimates</small>';
+      return div;
+    };
+    titleCtrl.addTo(map);
+
+    // Legend
+    const legend = L.control({ position: 'bottomright' });
+    legend.onAdd = function () {
+      const div = L.DomUtil.create('div', 'legend');
+      const grades = [0, 1e9, 10e9, 50e9, 100e9, 200e9, 500e9, 1e12, 2e12, 5e12, 10e12];
+      const labels = ['< $1B', '$1B', '$10B', '$50B', '$100B', '$200B', '$500B', '$1T', '$2T', '$5T', '$10T+'];
+      div.innerHTML = '<h4>GDP (Nominal)</h4>';
+      for (let i = 0; i < grades.length; i++) {
+        div.innerHTML += '<i style="background:' + getColor(grades[i] + 1) + '"></i> ' + labels[i] + '<br>';
+      }
+      return div;
+    };
+    legend.addTo(map);
+
+    // Search
+    const searchCtrl = L.control({ position: 'topleft' });
+    const searchIndex = [];
+    searchCtrl.onAdd = function () {
+      const c = L.DomUtil.create('div', 'search-container');
+      c.innerHTML = '<input type="text" placeholder="Search country..." id="searchInput"><div class="search-results" id="searchResults"></div>';
+      L.DomEvent.disableClickPropagation(c);
+      L.DomEvent.disableScrollPropagation(c);
+      return c;
+    };
+    searchCtrl.addTo(map);
+
+    let geojsonLayer;
+    let highlightedLayer = null;
+
+    function styleFeature(feature) {
+      const code = getCode(feature);
+      const d = code ? GDP[code] : null;
+      return {
+        fillColor: getColor(d ? d.gdp : null),
+        weight: 1, opacity: 1, color: '#fff', fillOpacity: 0.75
+      };
+    }
+
+    function highlightFeature(e) {
+      const layer = e.target;
+      layer.setStyle({ weight: 2.5, color: '#333', fillOpacity: 0.92 });
+      layer.bringToFront();
+      const code = getCode(layer.feature);
+      const d = code ? GDP[code] : null;
+      info.update(d, layer.feature.properties.name);
+    }
+
+    function resetHighlight(e) {
+      geojsonLayer.resetStyle(e.target);
+      info.update();
+    }
+
+    function zoomToFeature(e) {
+      map.fitBounds(e.target.getBounds(), { maxZoom: 7, padding: [20, 20] });
+    }
+
+    function onEachFeature(feature, layer) {
+      layer.on({ mouseover: highlightFeature, mouseout: resetHighlight, click: zoomToFeature });
+      const code = getCode(feature);
+      const d = code ? GDP[code] : null;
+      const displayName = d ? d.name : (feature.properties.name || 'Unknown');
+      searchIndex.push({ name: displayName, layer, code, gdp: d ? d.gdp : null });
+    }
+
+    fetch('countries-50m.json')
+      .then(r => r.json())
+      .then(topology => {
+        const geojson = topojson.feature(topology, topology.objects.countries);
+        geojsonLayer = L.geoJson(geojson, { style: styleFeature, onEachFeature }).addTo(map);
+        document.getElementById('loading').classList.add('hidden');
+
+        const input = document.getElementById('searchInput');
+        const results = document.getElementById('searchResults');
+        input.addEventListener('input', function () {
+          const q = this.value.toLowerCase().trim();
+          results.innerHTML = '';
+          if (q.length < 2) return;
+          searchIndex.filter(e => e.name.toLowerCase().includes(q)).slice(0, 8).forEach(item => {
+            const div = document.createElement('div');
+            div.textContent = item.name + (item.gdp ? ' — ' + fmtGDP(item.gdp) : '');
+            div.addEventListener('click', () => {
+              map.fitBounds(item.layer.getBounds(), { maxZoom: 7, padding: [20, 20] });
+              highlightFeature({ target: item.layer });
+              results.innerHTML = '';
+              input.value = item.name;
+              if (highlightedLayer && highlightedLayer !== item.layer) geojsonLayer.resetStyle(highlightedLayer);
+              highlightedLayer = item.layer;
+            });
+            results.appendChild(div);
+          });
+        });
+      })
+      .catch(err => {
+        console.error('Load error:', err);
+        document.getElementById('loading').textContent = 'Failed to load map data. Please refresh.';
+      });
+  </script>
+</body>
+</html>
