@@ -81,6 +81,29 @@
     .search-results div { padding: 6px 12px; cursor: pointer; font-size: 13px; border-radius: 4px; }
     .search-results div:hover { background: #e8f5e9; }
 
+    .mode-toggle {
+      padding: 4px;
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(8px);
+      border-radius: 8px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+      display: flex;
+      gap: 3px;
+    }
+    .mode-toggle button {
+      padding: 6px 18px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      background: transparent;
+      color: #888;
+      transition: background 0.15s, color 0.15s;
+    }
+    .mode-toggle button.active.gdp-mode { background: #2d6a4f; color: #fff; }
+    .mode-toggle button.active.hdi-mode { background: #08519c; color: #fff; }
+
     .loading-overlay {
       position: fixed; top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(255,255,255,0.85); display: flex;
@@ -305,6 +328,51 @@
       ESH: { gdp: 0.91e9,     name: "Western Sahara",           pop: 0.58e6 },
     };
 
+    // HDI data — UNDP 2022 Human Development Report
+    // Values are the HDI score (0–1); null = no data available
+    const HDI = {
+      AFG: 0.462, ALB: 0.789, DZA: 0.745, AND: 0.906, AGO: 0.586,
+      ATG: 0.826, ARG: 0.849, ARM: 0.786, AUS: 0.946, AUT: 0.926,
+      AZE: 0.760, BHS: 0.820, BHR: 0.888, BGD: 0.661, BRB: 0.814,
+      BLR: 0.801, BEL: 0.942, BLZ: 0.683, BEN: 0.504, BTN: 0.666,
+      BOL: 0.698, BIH: 0.779, BWA: 0.693, BRA: 0.760, BRN: 0.829,
+      BGR: 0.796, BFA: 0.449, BDI: 0.426, CPV: 0.661, KHM: 0.593,
+      CMR: 0.587, CAN: 0.935, CAF: 0.387, TCD: 0.394, CHL: 0.860,
+      CHN: 0.788, COL: 0.758, COM: 0.558, COG: 0.592, COD: 0.481,
+      CRI: 0.806, CIV: 0.534, HRV: 0.878, CUB: 0.764, CYP: 0.907,
+      CZE: 0.895, DNK: 0.952, DJI: 0.524, DMA: 0.720, DOM: 0.767,
+      ECU: 0.765, EGY: 0.728, SLV: 0.675, GNQ: 0.596, ERI: 0.492,
+      EST: 0.899, SWZ: 0.597, ETH: 0.492, FJI: 0.730, FIN: 0.940,
+      FRA: 0.910, GAB: 0.703, GMB: 0.500, GEO: 0.814, DEU: 0.942,
+      GHA: 0.632, GRC: 0.893, GRD: 0.796, GTM: 0.627, GIN: 0.465,
+      GNB: 0.461, GUY: 0.742, HTI: 0.535, HND: 0.624, HUN: 0.851,
+      ISL: 0.959, IND: 0.644, IDN: 0.713, IRN: 0.780, IRQ: 0.686,
+      IRL: 0.950, ISR: 0.915, ITA: 0.906, JAM: 0.706, JPN: 0.920,
+      JOR: 0.736, KAZ: 0.802, KEN: 0.601, KIR: 0.624, PRK: null,
+      KOR: 0.929, XKX: 0.796, KWT: 0.847, KGZ: 0.692, LAO: 0.620,
+      LVA: 0.879, LBN: 0.706, LSO: 0.514, LBR: 0.481, LBY: 0.718,
+      LIE: 0.935, LTU: 0.879, LUX: 0.930, MDG: 0.476, MWI: 0.508,
+      MYS: 0.803, MDV: 0.747, MLI: 0.410, MLT: 0.918, MHL: 0.636,
+      MRT: 0.540, MUS: 0.796, MEX: 0.781, FSM: 0.628, MDA: 0.763,
+      MCO: null,  MNG: 0.737, MNE: 0.844, MAR: 0.683, MOZ: 0.456,
+      MMR: 0.585, NAM: 0.615, NRU: null,  NPL: 0.601, NLD: 0.946,
+      NZL: 0.939, NIC: 0.667, NER: 0.394, NGA: 0.535, MKD: 0.770,
+      NOR: 0.966, OMN: 0.816, PAK: 0.544, PLW: 0.767, PSE: 0.715,
+      PAN: 0.818, PNG: 0.558, PRY: 0.717, PER: 0.762, PHL: 0.710,
+      POL: 0.881, PRT: 0.874, QAT: 0.855, ROU: 0.821, RUS: 0.821,
+      RWA: 0.534, KNA: 0.777, LCA: 0.756, VCT: 0.751, WSM: 0.707,
+      SMR: null,  STP: 0.618, SAU: 0.875, SEN: 0.511, SRB: 0.805,
+      SYC: 0.802, SLE: 0.478, SGP: 0.939, SVK: 0.855, SVN: 0.918,
+      SLB: 0.557, SOM: null,  ZAF: 0.717, SSD: 0.381, ESP: 0.911,
+      LKA: 0.780, SDN: 0.510, SUR: 0.730, SWE: 0.952, CHE: 0.967,
+      SYR: 0.577, TWN: null,  TJK: 0.685, TZA: 0.532, THA: 0.803,
+      TLS: 0.607, TGO: 0.539, TON: 0.741, TTO: 0.814, TUN: 0.732,
+      TUR: 0.855, TKM: 0.745, TUV: null,  UGA: 0.550, UKR: 0.773,
+      ARE: 0.937, GBR: 0.940, USA: 0.927, URY: 0.830, UZB: 0.727,
+      VUT: 0.618, VAT: null,  VEN: 0.699, VNM: 0.726, YEM: 0.455,
+      ZMB: 0.565, ZWE: 0.593,
+    };
+
     // Map from ISO 3166-1 numeric codes (used in TopoJSON) to Alpha-3
     const NUM_TO_A3 = {
       "4":"AFG","8":"ALB","12":"DZA","20":"AND","24":"AGO","28":"ATG","32":"ARG",
@@ -351,6 +419,26 @@
         if (a3) return a3;
       }
       return feature.properties['ISO3166-1-Alpha-3'] || null;
+    }
+
+    let currentMode = 'gdp'; // 'gdp' | 'hdi'
+
+    function getHDIColor(hdi) {
+      if (hdi == null) return '#d5d5d5';
+      if (hdi >= 0.900) return '#08306b';
+      if (hdi >= 0.800) return '#08519c';
+      if (hdi >= 0.700) return '#2171b5';
+      if (hdi >= 0.600) return '#4292c6';
+      if (hdi >= 0.500) return '#6baed6';
+      if (hdi >= 0.400) return '#9ecae1';
+      return '#c6dbef';
+    }
+
+    function getHDICategory(hdi) {
+      if (hdi >= 0.800) return 'Very High';
+      if (hdi >= 0.700) return 'High';
+      if (hdi >= 0.550) return 'Medium';
+      return 'Low';
     }
 
     function getColor(gdp) {
@@ -400,19 +488,34 @@
       this.update();
       return this._div;
     };
-    info.update = function (data, name) {
-      if (!data && !name) {
+    info.update = function (code, fallbackName) {
+      if (code == null && !fallbackName) {
         this._div.innerHTML = '<p class="hint">Hover over a country</p>';
-      } else if (data) {
-        this._div.innerHTML =
-          '<div class="country-name">' + data.name + '</div>' +
-          '<div class="gdp-value">' + fmtGDP(data.gdp) + '</div>' +
-          '<div class="stat-row"><span class="stat-label">Per capita:</span> ' + fmtPC(data.gdp, data.pop) + '</div>' +
-          '<div class="stat-row"><span class="stat-label">Population:</span> ' + (data.pop / 1e6).toFixed(1) + 'M</div>';
+        return;
+      }
+      const gdpData = code ? GDP[code] : null;
+      const hdiVal  = code != null ? HDI[code] : null;
+      const name = gdpData ? gdpData.name : (fallbackName || 'Unknown');
+      if (currentMode === 'gdp') {
+        if (gdpData) {
+          this._div.innerHTML =
+            '<div class="country-name">' + name + '</div>' +
+            '<div class="gdp-value">' + fmtGDP(gdpData.gdp) + '</div>' +
+            '<div class="stat-row"><span class="stat-label">Per capita:</span> ' + fmtPC(gdpData.gdp, gdpData.pop) + '</div>' +
+            '<div class="stat-row"><span class="stat-label">Population:</span> ' + (gdpData.pop / 1e6).toFixed(1) + 'M</div>';
+        } else {
+          this._div.innerHTML =
+            '<div class="country-name">' + name + '</div>' +
+            '<div class="stat-row" style="color:#999">GDP data unavailable</div>';
+        }
       } else {
         this._div.innerHTML =
           '<div class="country-name">' + name + '</div>' +
-          '<div class="stat-row" style="color:#999">GDP data unavailable</div>';
+          (hdiVal != null
+            ? '<div class="gdp-value" style="color:#08519c">' + hdiVal.toFixed(3) + '</div>' +
+              '<div class="stat-row"><span class="stat-label">Category:</span> ' + getHDICategory(hdiVal) + ' Human Development</div>'
+            : '<div class="stat-row" style="color:#999">HDI data unavailable</div>') +
+          (gdpData ? '<div class="stat-row"><span class="stat-label">Population:</span> ' + (gdpData.pop / 1e6).toFixed(1) + 'M</div>' : '');
       }
     };
     info.addTo(map);
@@ -427,16 +530,32 @@
     titleCtrl.addTo(map);
 
     // Legend
+    let legendDiv = null;
+
+    function updateLegend() {
+      if (!legendDiv) return;
+      if (currentMode === 'gdp') {
+        const grades = [0, 1e9, 10e9, 50e9, 100e9, 200e9, 500e9, 1e12, 2e12, 5e12, 10e12];
+        const labels = ['< $1B', '$1B', '$10B', '$50B', '$100B', '$200B', '$500B', '$1T', '$2T', '$5T', '$10T+'];
+        legendDiv.innerHTML = '<h4>GDP (Nominal)</h4>';
+        for (let i = 0; i < grades.length; i++) {
+          legendDiv.innerHTML += '<i style="background:' + getColor(grades[i] + 1) + '"></i> ' + labels[i] + '<br>';
+        }
+      } else {
+        const grades = [0, 0.400, 0.500, 0.600, 0.700, 0.800, 0.900];
+        const labels = ['< 0.400', '0.400', '0.500', '0.600', '0.700', '0.800', '0.900+'];
+        legendDiv.innerHTML = '<h4>HDI Score</h4>';
+        for (let i = 0; i < grades.length; i++) {
+          legendDiv.innerHTML += '<i style="background:' + getHDIColor(grades[i] + 0.001) + '"></i> ' + labels[i] + '<br>';
+        }
+      }
+    }
+
     const legend = L.control({ position: 'bottomright' });
     legend.onAdd = function () {
-      const div = L.DomUtil.create('div', 'legend');
-      const grades = [0, 1e9, 10e9, 50e9, 100e9, 200e9, 500e9, 1e12, 2e12, 5e12, 10e12];
-      const labels = ['< $1B', '$1B', '$10B', '$50B', '$100B', '$200B', '$500B', '$1T', '$2T', '$5T', '$10T+'];
-      div.innerHTML = '<h4>GDP (Nominal)</h4>';
-      for (let i = 0; i < grades.length; i++) {
-        div.innerHTML += '<i style="background:' + getColor(grades[i] + 1) + '"></i> ' + labels[i] + '<br>';
-      }
-      return div;
+      legendDiv = L.DomUtil.create('div', 'legend');
+      updateLegend();
+      return legendDiv;
     };
     legend.addTo(map);
 
@@ -452,16 +571,28 @@
     };
     searchCtrl.addTo(map);
 
+    // Mode toggle control
+    const toggleCtrl = L.control({ position: 'topleft' });
+    toggleCtrl.onAdd = function () {
+      const div = L.DomUtil.create('div', 'mode-toggle');
+      div.innerHTML =
+        '<button id="btn-gdp" class="active gdp-mode">GDP</button>' +
+        '<button id="btn-hdi" class="hdi-mode">HDI</button>';
+      L.DomEvent.disableClickPropagation(div);
+      L.DomEvent.disableScrollPropagation(div);
+      return div;
+    };
+    toggleCtrl.addTo(map);
+
     let geojsonLayer;
     let highlightedLayer = null;
 
     function styleFeature(feature) {
       const code = getCode(feature);
-      const d = code ? GDP[code] : null;
-      return {
-        fillColor: getColor(d ? d.gdp : null),
-        weight: 1, opacity: 1, color: '#fff', fillOpacity: 0.75
-      };
+      const fillColor = currentMode === 'gdp'
+        ? getColor(code && GDP[code] ? GDP[code].gdp : null)
+        : getHDIColor(code != null ? HDI[code] : null);
+      return { fillColor, weight: 1, opacity: 1, color: '#fff', fillOpacity: 0.75 };
     }
 
     function highlightFeature(e) {
@@ -469,8 +600,7 @@
       layer.setStyle({ weight: 2.5, color: '#333', fillOpacity: 0.92 });
       layer.bringToFront();
       const code = getCode(layer.feature);
-      const d = code ? GDP[code] : null;
-      info.update(d, layer.feature.properties.name);
+      info.update(code, layer.feature.properties.name);
     }
 
     function resetHighlight(e) {
@@ -518,6 +648,17 @@
         const renderer = L.svg({ padding: 0.5 });
         geojsonLayer = L.geoJson(geojson, { style: styleFeature, onEachFeature, renderer }).addTo(map);
         document.getElementById('loading').classList.add('hidden');
+
+        function setMode(mode) {
+          currentMode = mode;
+          document.getElementById('btn-gdp').classList.toggle('active', mode === 'gdp');
+          document.getElementById('btn-hdi').classList.toggle('active', mode === 'hdi');
+          geojsonLayer.setStyle(styleFeature);
+          updateLegend();
+          info.update();
+        }
+        document.getElementById('btn-gdp').addEventListener('click', () => setMode('gdp'));
+        document.getElementById('btn-hdi').addEventListener('click', () => setMode('hdi'));
 
         const input = document.getElementById('searchInput');
         const results = document.getElementById('searchResults');
