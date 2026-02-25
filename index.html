@@ -490,10 +490,30 @@
       searchIndex.push({ name: displayName, layer, code, gdp: d ? d.gdp : null });
     }
 
+    function unwrapRing(ring) {
+      for (let i = 1; i < ring.length; i++) {
+        const prev = ring[i - 1][0];
+        let lng = ring[i][0];
+        while (lng - prev > 180) lng -= 360;
+        while (lng - prev < -180) lng += 360;
+        ring[i] = [lng, ring[i][1]];
+      }
+    }
+
+    function unwrapGeometry(geometry) {
+      if (!geometry) return;
+      if (geometry.type === 'Polygon') {
+        geometry.coordinates.forEach(unwrapRing);
+      } else if (geometry.type === 'MultiPolygon') {
+        geometry.coordinates.forEach(poly => poly.forEach(unwrapRing));
+      }
+    }
+
     fetch('countries-50m.json')
       .then(r => r.json())
       .then(topology => {
         const geojson = topojson.feature(topology, topology.objects.countries);
+        geojson.features.forEach(f => unwrapGeometry(f.geometry));
         // Use SVG renderer with padding to prevent clipping seams at tile boundaries
         const renderer = L.svg({ padding: 0.5 });
         geojsonLayer = L.geoJson(geojson, { style: styleFeature, onEachFeature, renderer }).addTo(map);
